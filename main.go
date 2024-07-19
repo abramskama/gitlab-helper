@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -12,22 +14,6 @@ import (
 )
 
 func main() {
-	command := "none"
-
-	argsWithProg := os.Args
-	for i, arg := range argsWithProg {
-		if arg == "-command" && i != len(argsWithProg)-1 {
-			command = argsWithProg[i+1]
-		}
-	}
-	if command == "mrs" {
-		waitingForApprove()
-		return
-	}
-	fmt.Printf("Unknown command: %s", command)
-}
-
-func waitingForApprove() {
 	authToken := os.Getenv("GITLAB_AUTH_TOKEN")
 	gitlabHost := os.Getenv("GITLAB_HOST")
 
@@ -42,24 +28,47 @@ func waitingForApprove() {
 		return
 	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/mrs", newHandler(gitlabClient))
+
+	fs := http.FileServer(http.Dir("./frontend"))
+	mux.HandleFunc("/", fs.ServeHTTP)
+
+	handler := Log(mux)
+	err := http.ListenAndServe(":4444", handler)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func Log(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println(r.URL.Path, r.Method)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func newHandler(gitlabClient *gitlab.Client) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		pageContent, err := waitingForApprove(gitlabClient)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = w.Write([]byte(pageContent))
+	}
+}
+
+func waitingForApprove(gitlabClient *gitlab.Client) (string, error) {
 	mrs, err := gitlabClient.WaitingForApprove()
 	if err != nil {
-		fmt.Printf("Can't get issues: %s", err.Error())
-		return
+		return "", err
 	}
 	formattedMRs := lo.Map(mrs, func(mr gitlab.MR, _ int) string {
 		return fmt.Sprintf("%d %s %s", mr.ID, mr.Title, mr.WebUrl)
 	})
 	fmt.Printf(strings.Join(formattedMRs, "\n"))
 
-	f, err := os.Create("./frontend/tmp.html")
-	if err != nil {
-		fmt.Printf("Can't create html file: %s", err.Error())
-		return
-	}
-	defer f.Close()
-
-	table := html.PrintTable("Waiting for approve", lo.Map(mrs, func(item gitlab.MR, index int) []html.Cell {
+	table := html.PrintTable("Merge requests to review", lo.Map(mrs, func(item gitlab.MR, index int) []html.Cell {
 		return []html.Cell{
 			{Key: "ID", Value: html.Value{Value: item.ID, Link: item.WebUrl}},
 			{Key: "Title", Value: html.Value{Value: item.Title}},
@@ -71,9 +80,5 @@ func waitingForApprove() {
 			{Key: "Approved", Value: html.Value{Value: item.ApprovedByMe, IsCheckbox: true}},
 		}
 	}))
-	_, err = f.WriteString(table)
-	if err != nil {
-		fmt.Printf("Can't write html file: %s", err.Error())
-		return
-	}
+	return table, nil
 }

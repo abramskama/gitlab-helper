@@ -1,5 +1,5 @@
 -include .env
 export
 
-mrs:
-	@go run main.go -command mrs
+run:
+	@go run main.go

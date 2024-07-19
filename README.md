@@ -15,11 +15,12 @@ GITLAB_HOST=
 
 # Run
 
-## Merge requests to review
-Will generate html page with list of MRs waiting for your review
+## Run server
+Will run http server on 4444 port
 
 ```shell
-  make mrs
+  make run
 ```
 
-Then open ./frontend/tmp.html in browser
+## Open http://localhost:3333/mrs
+Will open html page with list of MRs waiting for your review
