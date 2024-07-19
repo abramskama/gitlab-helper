@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -67,6 +68,16 @@ func waitingForApprove(gitlabClient *gitlab.Client) (string, error) {
 		return fmt.Sprintf("%d %s %s", mr.ID, mr.Title, mr.WebUrl)
 	})
 	fmt.Printf(strings.Join(formattedMRs, "\n"))
+
+	sort.SliceStable(mrs, func(i, j int) bool {
+		if mrs[i].ApprovedByMe {
+			return false
+		}
+		if mrs[j].ApprovedByMe {
+			return true
+		}
+		return j > i
+	})
 
 	table := html.PrintTable("Merge requests to review", lo.Map(mrs, func(item gitlab.MR, index int) []html.Cell {
 		return []html.Cell{
