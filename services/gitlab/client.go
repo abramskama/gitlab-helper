@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/samber/lo"
@@ -47,6 +48,8 @@ type Note struct {
 }
 
 const approveNoteBody = "approved this merge request"
+
+var userMentionRegex = regexp.MustCompile("@[a-z.]*")
 
 func NewClient(host, authToken string) *Client {
 	return &Client{
@@ -94,32 +97,22 @@ func (c *Client) WaitingForApprove() ([]MR, error) {
 		if mr.Author.Username == username {
 			return false
 		}
-		_, found := lo.Find(mr.Assignees, func(user User) bool {
+		found := lo.ContainsBy(mr.Assignees, func(user User) bool {
 			return user.Username == username
 		})
 		if found {
 			return true
 		}
-		_, found = lo.Find(mr.Reviewers, func(user User) bool {
+		found = lo.ContainsBy(mr.Reviewers, func(user User) bool {
 			return user.Username == username
 		})
 		if found {
 			return true
 		}
-		parts := strings.Split(mr.Description, "\n")
-		for _, part := range parts {
-			parts2 := strings.Split(part, " ")
-			for _, part2 := range parts2 {
-				if !strings.HasPrefix(part2, "@") {
-					continue
-				}
-				part2 = strings.TrimRight(part2, "\n")
-				if part2 == "@"+username {
-					return true
-				}
-			}
-		}
-		return false
+		mentions := userMentionRegex.FindAllString(mr.Description, -1)
+		return lo.ContainsBy(mentions, func(mention string) bool {
+			return mention == "@"+username
+		})
 	})
 
 	for i, mr := range mrsResponse {
