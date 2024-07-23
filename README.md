@@ -24,3 +24,5 @@ Will run http server on 4444 port
 
 ## Open http://localhost:3333/mrs
 Will open html page with list of MRs waiting for your review
+
+![alt text](./screenshot.png)
