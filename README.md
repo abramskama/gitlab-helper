@@ -22,7 +22,7 @@ Will run http server on 4444 port
   make run
 ```
 
-## Open http://localhost:3333/mrs
+## Open http://localhost:4444/mrs
 Will open html page with list of MRs waiting for your review
 
 ![alt text](./screenshot.png)
